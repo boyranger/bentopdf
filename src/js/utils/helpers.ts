@@ -68,6 +68,17 @@ export const formatBytes = (bytes: any, decimals = 1) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
+/**
+ * Dispatches a custom event when a PDF is ready.
+ * This allows other modules (like Appwrite) to offer cloud saving.
+ */
+export const dispatchResultEvent = (blob: Blob, filename: string) => {
+  const event = new CustomEvent('pdf-result', {
+    detail: { blob, filename },
+  });
+  window.dispatchEvent(event);
+};
+
 export const downloadFile = (blob: Blob, filename: string): void => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -77,6 +88,9 @@ export const downloadFile = (blob: Blob, filename: string): void => {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+
+  // Trigger cloud saving option
+  dispatchResultEvent(blob, filename);
 };
 
 export const readFileAsArrayBuffer = (file: any) => {

@@ -17,10 +17,86 @@ import {
 } from './i18n/index.js';
 declare const __BRAND_NAME__: string;
 
+import { initAppwrite, uploadPDFToCloud } from './appwrite.js';
+
 const init = async () => {
+  await initAppwrite();
   await initI18n();
   injectLanguageSwitcher();
   applyTranslations();
+
+  // Handle Cloud Saving
+  window.addEventListener('pdf-result', (event: any) => {
+    const { blob, filename } = event.detail;
+
+    // Create Cloud Toast if it doesn't exist
+    let toast = document.getElementById('cloud-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'cloud-toast';
+      toast.className = 'cloud-toast';
+      document.body.appendChild(toast);
+    }
+
+    toast.innerHTML = `
+      <div class="cloud-toast-header">
+        <i data-lucide="cloud" class="w-5 h-5 text-indigo-400"></i>
+        <span class="cloud-toast-title">File Ready!</span>
+      </div>
+      <p class="cloud-toast-desc">Successfully downloaded <strong>${filename}</strong>. Want to save a copy to your cloud vault?</p>
+      <div class="flex flex-col gap-2">
+        <button id="save-cloud-btn" class="btn-cloud">
+          <i data-lucide="upload-cloud"></i>
+          Save to Appwrite
+        </button>
+        <button id="close-toast-btn" class="btn-cloud-secondary">Maybe later</button>
+      </div>
+    `;
+
+    createIcons({ icons });
+    toast.classList.add('visible');
+
+    const saveBtn = toast.querySelector('#save-cloud-btn');
+    const closeBtn = toast.querySelector('#close-toast-btn');
+
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="spin" data-lucide="loader-2"></i> Saving...';
+      createIcons({ icons });
+
+      try {
+        const file = new File([blob], filename, { type: 'application/pdf' });
+        await uploadPDFToCloud(file);
+        
+        toast.innerHTML = `
+          <div class="cloud-toast-header">
+            <i data-lucide="check-circle" class="w-5 h-5 text-green-400"></i>
+            <span class="cloud-toast-title">Saved!</span>
+          </div>
+          <p class="cloud-toast-desc">Your file is now safely stored in your Appwrite Vault.</p>
+          <button id="close-toast-btn" class="btn-cloud">Awesome</button>
+        `;
+        createIcons({ icons });
+        setTimeout(() => toast.classList.remove('visible'), 3000);
+      } catch (err) {
+        console.error('Cloud upload failed:', err);
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i data-lucide="alert-circle"></i> Retry Saving';
+        createIcons({ icons });
+      }
+    });
+
+    closeBtn.addEventListener('click', () => {
+      toast.classList.remove('visible');
+    });
+    
+    // Auto-hide after 15 seconds if not interacted with
+    setTimeout(() => {
+        if (toast.classList.contains('visible') && !saveBtn.disabled) {
+            toast.classList.remove('visible');
+        }
+    }, 15000);
+  });
 
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
     'pdfjs-dist/build/pdf.worker.min.mjs',
